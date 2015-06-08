@@ -9,7 +9,8 @@ module Pdf.Toolbox.Document.Page
   pageContents,
   pageMediaBox,
   pageFontDicts,
-  pageExtractText
+  pageExtractText,
+  pageExtractGeneric
 )
 where
 
@@ -98,7 +99,11 @@ pageFontDicts (Page _ dict) =
 -- It tries to add spaces between chars if they don't present
 -- as actual characters in content stream.
 pageExtractText :: (MonadPdf m, MonadIO m) => Page -> PdfE m Text
-pageExtractText page = do
+pageExtractText page = pageExtractGeneric glyphsToText page
+
+-- | Extract contents from the page in a generic way
+pageExtractGeneric :: (MonadPdf m, MonadIO m) => ([[Glyph]] -> a) -> Page -> PdfE m a
+pageExtractGeneric conv page = do
   -- load fonts and create glyph decoder
   fontDicts <- Map.fromList <$> pageFontDicts page
   glyphDecoders <- Traversable.forM fontDicts $ \fontDict ->
@@ -131,7 +136,7 @@ pageExtractText page = do
         next <- readNextOperator is
         case next of
           Just op -> processOp op p >>= loop
-          Nothing -> return $ glyphsToText (prGlyphs p)
+          Nothing -> return $ conv (prGlyphs p)
   loop $ mkProcessor {
     prGlyphDecoder = glyphDecoder
     }
